@@ -183,6 +183,8 @@ AUTH_USER_MODEL = 'accounts.User'
 
 COMPRESS_ROOT = BASE_DIR / 'static'
 COMPRESS_ENABLED = True
+# Offline compression in production: run `python manage.py compress` in release so we fail at deploy time, not on first request.
+COMPRESS_OFFLINE = not DEBUG
 
 STATICFILES_FINDERS = (
     'django.contrib.staticfiles.finders.FileSystemFinder',
