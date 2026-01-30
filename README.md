@@ -92,7 +92,7 @@ Note: The chat application requires WebSocket support, so use one of the above m
 2. **Config vars:** Set `DJANGO_SECRET_KEY` (required when `DEBUG=False`). Optionally set `DJANGO_ALLOWED_HOSTS`; default includes `.herokuapp.com`. Add Postgres and Redis addons if not already attached; Heroku sets `DATABASE_URL` and `REDIS_URL` automatically.
 3. **Python version:** Pinned in `.python-version` (Heroku’s Python buildpack uses this; `runtime.txt` is deprecated).
 
-The release phase runs: build Tailwind CSS → migrate → compress (offline) → collectstatic. Offline compression (`COMPRESS_OFFLINE=True` in production) runs at deploy time so static/compressor errors show in release logs, not as 500s on first request.
+The release phase runs: build Tailwind CSS → migrate → collectstatic. Compression is on-the-fly (`COMPRESS_OFFLINE=False`) so no offline manifest is needed.
 
 **Viewing app logs:** `heroku logs --tail` mixes all addons (e.g. heroku-redis). To see web dyno and release output:
 ```bash
