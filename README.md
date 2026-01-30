@@ -89,7 +89,7 @@ Note: The chat application requires WebSocket support, so use one of the above m
    ```bash
    heroku buildpacks:add --index 1 heroku/nodejs
    ```
-2. **Config vars:** Set `DJANGO_SECRET_KEY` (required when `DEBUG=False`). Optionally set `DJANGO_ALLOWED_HOSTS`; default includes `.herokuapp.com`. Add Postgres and Redis addons if not already attached; Heroku sets `DATABASE_URL` and `REDIS_URL` automatically.
+2. **Config vars:** Set `DJANGO_SECRET_KEY` (required when `DEBUG=False`). Set `DJANGO_CSRF_TRUSTED_ORIGINS` to your app URL (e.g. `https://secure-atoll-88335-7f808e9c7ae1.herokuapp.com`) so form POSTs (login, etc.) work over HTTPS. Optionally set `DJANGO_ALLOWED_HOSTS`; default includes `.herokuapp.com`. Add Postgres and Redis addons if not already attached; Heroku sets `DATABASE_URL` and `REDIS_URL` automatically.
 3. **Python version:** Pinned in `.python-version` (Heroku’s Python buildpack uses this; `runtime.txt` is deprecated).
 
 Tailwind CSS is built during the **Node build phase** (`npm run build` → `build:css`), so `static/src/output.css` is in the slug before the web dyno runs. Release runs: migrate → collectstatic. Compression is on-the-fly (`COMPRESS_OFFLINE=False`).
@@ -126,6 +126,8 @@ Create a `.env` file in the project root:
 DJANGO_SECRET_KEY=your-secret-key-here
 DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+# Production (e.g. Heroku): set to app URL so CSRF works for form POSTs over HTTPS
+# DJANGO_CSRF_TRUSTED_ORIGINS=https://your-app.herokuapp.com
 DJANGO_PASSWORD_RESET_TIMEOUT=3600
 
 # APIs

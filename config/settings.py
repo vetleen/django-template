@@ -58,6 +58,9 @@ INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
+# CSRF: required for HTTPS form POSTs (Django 4.0+). Set e.g. DJANGO_CSRF_TRUSTED_ORIGINS=https://your-app.herokuapp.com
+_csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
 
 # Application definition
 
