@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import ssl
 from pathlib import Path
 
 import dj_database_url
@@ -218,11 +219,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 # Channels / Redis
+_redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+# Heroku Redis (rediss://) uses TLS with a cert that fails default verification; skip for channel layer.
+if _redis_url.startswith("rediss://"):
+    _channel_hosts = [{"address": _redis_url, "ssl_cert_reqs": ssl.CERT_NONE}]
+else:
+    _channel_hosts = [_redis_url]
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")],
-        },
+        "CONFIG": {"hosts": _channel_hosts},
     },
 }
