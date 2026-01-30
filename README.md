@@ -85,20 +85,38 @@ Note: The chat application requires WebSocket support, so use one of the above m
 
 **Checklist before first deploy:**
 
-1. **Node.js buildpack** (required for Tailwind in release):
+1. **Node.js buildpack** (required so Tailwind CSS is built during the build phase):
    ```bash
-   heroku buildpacks:add --index 1 heroku/nodejs
+   heroku buildpacks:add --index 1 heroku/nodejs -a YOUR_APP_NAME
    ```
-2. **Config vars:** Set `DJANGO_SECRET_KEY` (required when `DEBUG=False`). Set `DJANGO_CSRF_TRUSTED_ORIGINS` to your app URL (e.g. `https://secure-atoll-88335-7f808e9c7ae1.herokuapp.com`) so form POSTs (login, etc.) work over HTTPS. Optionally set `DJANGO_ALLOWED_HOSTS`; default includes `.herokuapp.com`. Add Postgres and Redis addons if not already attached; Heroku sets `DATABASE_URL` and `REDIS_URL` automatically.
-3. **Python version:** Pinned in `.python-version` (Heroku’s Python buildpack uses this; `runtime.txt` is deprecated).
+2. **Add-ons:** Attach Heroku Postgres and Heroku Redis. Heroku sets `DATABASE_URL` and `REDIS_URL` automatically.
+3. **Config vars** (Settings → Reveal Config Vars). See [Heroku config vars](#heroku-config-vars) below.
+4. **Python version:** Pinned in `.python-version` (Heroku’s Python buildpack uses this; `runtime.txt` is deprecated).
 
-Tailwind CSS is built during the **Node build phase** (`npm run build` → `build:css`), so `static/src/output.css` is in the slug before the web dyno runs. Release runs: migrate → collectstatic. Compression is on-the-fly (`COMPRESS_OFFLINE=False`).
+**How it works:**
 
-**Viewing app logs:** `heroku logs --tail` mixes all addons (e.g. heroku-redis). To see web dyno and release output:
-```bash
-heroku logs --tail --source app -a YOUR_APP_NAME
-```
-Or check release result: `heroku releases -a YOUR_APP_NAME` (failed release = deploy did not go live).
+- **Tailwind CSS** is built in the **Node build phase** (`npm run build` → `build:css`), so `static/src/output.css` is in the slug before the web dyno runs. The template links to it directly (no Django Compressor for that file).
+- **Release phase:** `migrate` → `collectstatic` (no Tailwind step; that runs at build time).
+- **Procfile:** `web: daphne -b 0.0.0.0 -p $PORT config.asgi:application` (ASGI for HTTP + WebSockets).
+
+**Heroku config vars**
+
+| Variable | Required | Notes |
+|----------|----------|--------|
+| `DJANGO_SECRET_KEY` | Yes (when `DEBUG=False`) | Generate: `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Yes for form POSTs | Your app URL, e.g. `https://your-app-xxxx.herokuapp.com` (login, signup, etc. will 403 without this) |
+| `DATABASE_URL` | Set by Postgres add-on | — |
+| `REDIS_URL` | Set by Redis add-on | Heroku Redis uses `rediss://` (TLS); settings skip cert verification for the channel layer |
+| `DJANGO_ALLOWED_HOSTS` | Optional | Default includes `.herokuapp.com` |
+| `EMAIL_VERIFICATION_REQUIRED` | Optional | Set `False` to allow login without verifying email (e.g. dev/staging) |
+
+**Gotchas we’ve fixed (for reference):**
+
+- **CSS 404 / “looks like shit”:** Tailwind’s `output.css` must exist in the slug. It is built in the **Node build phase** (`npm run build`), not in the release phase (release runs in a one-off dyno; files written there are not in the slug). The template uses a direct `<link>` to `output.css`; Django Compressor is not used for it (Heroku’s filesystem is read-only at runtime).
+- **CSRF 403 on login/signup:** Set `DJANGO_CSRF_TRUSTED_ORIGINS` to your app’s HTTPS origin (e.g. `https://your-app.herokuapp.com`).
+- **Chat / channel layer 500, SSL cert verify failed:** Heroku Redis uses TLS with a cert that fails default verification. Settings use `ssl_cert_reqs=ssl.CERT_NONE` for `rediss://` URLs so the channel layer can connect.
+- **“Verify your email” after login:** The Heroku DB is separate from local. Either set the user’s `email_verified=True` via `heroku run python manage.py shell`, or set `EMAIL_VERIFICATION_REQUIRED=False` in Config Vars. To create a superuser: `heroku run python manage.py createsuperuser -a YOUR_APP_NAME`.
+- **Viewing logs:** `heroku logs --tail` mixes addon (e.g. Redis) output. For web/release only: `heroku logs --tail --source app -a YOUR_APP_NAME`. Check release success: `heroku releases -a YOUR_APP_NAME`.
 
 ### Running Tests
 
@@ -150,9 +168,9 @@ EMAIL_VERIFICATION_REQUIRED=True   # Set False to skip verification (e.g. dev)
 EMAIL_VERIFICATION_TIMEOUT=86400   # Token validity in seconds (default: 24h)
 ```
 
-`python-dotenv` loads `.env` in `config/settings.py`.
+`python-dotenv` loads `.env` in `config/settings.py`. On Heroku, set these in **Config Vars** (Settings → Reveal Config Vars); see [Heroku deployment](#heroku-deployment) for the required vars table and gotchas.
 
-**Note:** The `REDIS_URL` is optional and defaults to `redis://127.0.0.1:6379/0` if not set. For production or custom Redis setups, specify the full Redis URL.
+**Note:** The `REDIS_URL` is optional locally and defaults to `redis://127.0.0.1:6379/0`. Heroku Redis sets `REDIS_URL` (often `rediss://`); the app skips TLS cert verification for the channel layer so WebSockets/chat work.
 
 ## Tailwind + Flowbite
 - Input: `static/src/input.css`
