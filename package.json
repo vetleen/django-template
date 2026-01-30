@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "build": "npm run build:css",
     "build:css": "npx @tailwindcss/cli -i ./static/src/input.css -o ./static/src/output.css"
   },
   "devDependencies": {
