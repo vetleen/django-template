@@ -181,7 +181,7 @@ STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else 
 
 AUTH_USER_MODEL = 'accounts.User'
 
-COMPRESS_ROOT = BASE_DIR / 'static'
+COMPRESS_ROOT = STATIC_ROOT  # So compressed output is under staticfiles and WhiteNoise can serve it
 COMPRESS_ENABLED = True
 # Offline manifest often misses keys when template context differs between release and runtime; use on-the-fly compression.
 COMPRESS_OFFLINE = False
