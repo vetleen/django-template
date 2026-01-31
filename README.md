@@ -112,7 +112,7 @@ Note: The chat application requires WebSocket support, so use one of the above m
 
 **Gotchas we’ve fixed (for reference):**
 
-- **CSS 404 / “looks like shit”:** Tailwind’s `output.css` must exist in the slug. It is built in the **Node build phase** (`npm run build`), not in the release phase (release runs in a one-off dyno; files written there are not in the slug). The template uses a direct `<link>` to `output.css`; Django Compressor is not used for it (Heroku’s filesystem is read-only at runtime).
+- **CSS 404:** Tailwind’s `output.css` must exist in the slug. It is built in the **Node build phase** (`npm run build`), not in the release phase (release runs in a one-off dyno; files written there are not in the slug). The template uses a direct `<link>` to `output.css`; Django Compressor is not used for it (Heroku’s filesystem is read-only at runtime).
 - **CSRF 403 on login/signup:** Set `DJANGO_CSRF_TRUSTED_ORIGINS` to your app’s HTTPS origin (e.g. `https://your-app.herokuapp.com`).
 - **Chat / channel layer 500, SSL cert verify failed:** Heroku Redis uses TLS with a cert that fails default verification. Settings use `ssl_cert_reqs=ssl.CERT_NONE` for `rediss://` URLs so the channel layer can connect.
 - **“Verify your email” after login:** The Heroku DB is separate from local. Either set the user’s `email_verified=True` via `heroku run python manage.py shell`, or set `EMAIL_VERIFICATION_REQUIRED=False` in Config Vars. To create a superuser: `heroku run python manage.py createsuperuser -a YOUR_APP_NAME`.
