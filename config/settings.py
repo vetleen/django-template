@@ -63,6 +63,13 @@ INTERNAL_IPS = [
 _csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
 
+# Email backend (set before INSTALLED_APPS so we can conditionally add anymail)
+EMAIL_BACKEND = os.getenv(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+USING_ANYMAIL = EMAIL_BACKEND.startswith("anymail.backends.")
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -86,6 +93,8 @@ if DEBUG:
         "django_extensions",
         "django_browser_reload",
     ])
+if USING_ANYMAIL:
+    INSTALLED_APPS.append("anymail")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -200,10 +209,20 @@ LOGIN_REDIRECT_URL = '/chat/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'
 
-EMAIL_BACKEND = os.environ.get(
-    "DJANGO_EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",
-)
+# Email: safe defaults and optional prefix/admins
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "webmaster@localhost")
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+EMAIL_SUBJECT_PREFIX = os.getenv("EMAIL_SUBJECT_PREFIX", "")
+ADMINS = []  # e.g. [("Admin", "admin@example.com")]
+
+EMAIL_SENDING_ENABLED = _get_env_bool(os.environ.get("EMAIL_SENDING_ENABLED"), False)
+
+if USING_ANYMAIL:
+    ANYMAIL = {
+        "MAILGUN_API_KEY": os.getenv("MAILGUN_API_KEY", ""),
+        "MAILGUN_SENDER_DOMAIN": os.getenv("MAILGUN_SENDER_DOMAIN", ""),
+        "MAILGUN_API_URL": os.getenv("MAILGUN_API_URL", ""),
+    }
 
 PASSWORD_RESET_TIMEOUT = int(os.environ.get("DJANGO_PASSWORD_RESET_TIMEOUT", "3600"))
 
@@ -212,6 +231,31 @@ EMAIL_VERIFICATION_TIMEOUT = int(os.environ.get("EMAIL_VERIFICATION_TIMEOUT", "8
 EMAIL_VERIFICATION_REQUIRED = _get_env_bool(
     os.environ.get("EMAIL_VERIFICATION_REQUIRED"), True
 )
+
+# Fail-fast validation for production real email
+if not DEBUG:
+    SAFE_EMAIL_BACKENDS = {
+        "django.core.mail.backends.console.EmailBackend",
+        "django.core.mail.backends.locmem.EmailBackend",
+        "django.core.mail.backends.filebased.EmailBackend",
+    }
+    is_real_sending_backend = EMAIL_BACKEND not in SAFE_EMAIL_BACKENDS
+
+    if is_real_sending_backend and not EMAIL_SENDING_ENABLED:
+        raise ImproperlyConfigured(
+            "EMAIL_SENDING_ENABLED must be true to use a real email backend in production."
+        )
+
+    if is_real_sending_backend and "@" not in DEFAULT_FROM_EMAIL:
+        raise ImproperlyConfigured(
+            "DEFAULT_FROM_EMAIL must be set to a valid address in production."
+        )
+
+    if USING_ANYMAIL and EMAIL_BACKEND == "anymail.backends.mailgun.EmailBackend":
+        if not (ANYMAIL.get("MAILGUN_API_KEY") and ANYMAIL.get("MAILGUN_SENDER_DOMAIN")):
+            raise ImproperlyConfigured(
+                "Mailgun is selected but MAILGUN_API_KEY and MAILGUN_SENDER_DOMAIN must be set."
+            )
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

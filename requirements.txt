@@ -18,3 +18,4 @@ channels
 channels-redis
 daphne
 whitenoise==6.11.0
+django-anymail>=10

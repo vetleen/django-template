@@ -159,9 +159,15 @@ REDIS_URL=redis://127.0.0.1:6379/0  # Optional, defaults to localhost:6379
 DJANGO_USER_NAME=you@example.com
 DJANGO_PASSWORD=your-password
 
-# Email (dev default prints to terminal)
+# Email (local dev: console backend; no DEFAULT_FROM_EMAIL required)
 DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
-# DEFAULT_FROM_EMAIL=noreply@example.com   # Set in production for verification/password-reset emails
+# Production/Staging (e.g. Mailgun): set backend, enable sending, and provider vars
+# DJANGO_EMAIL_BACKEND=anymail.backends.mailgun.EmailBackend
+# EMAIL_SENDING_ENABLED=true
+# DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+# MAILGUN_API_KEY=
+# MAILGUN_SENDER_DOMAIN=yourdomain.com
+# MAILGUN_API_URL=   # optional (region-specific endpoint)
 
 # Email verification (optional)
 EMAIL_VERIFICATION_REQUIRED=True   # Set False to skip verification (e.g. dev)
@@ -171,6 +177,20 @@ EMAIL_VERIFICATION_TIMEOUT=86400   # Token validity in seconds (default: 24h)
 `python-dotenv` loads `.env` in `config/settings.py`. On Heroku, set these in **Config Vars** (Settings → Reveal Config Vars); see [Heroku deployment](#heroku-deployment) for the required vars table and gotchas.
 
 **Note:** The `REDIS_URL` is optional locally and defaults to `redis://127.0.0.1:6379/0`. Heroku Redis sets `REDIS_URL` (often `rediss://`); the app skips TLS cert verification for the channel layer so WebSockets/chat work.
+
+### Email modes and django-anymail
+
+The app uses Django's standard email API and supports any backend. For production we recommend [django-anymail](https://anymail.dev/) with a transactional provider. Switching providers is done by changing `DJANGO_EMAIL_BACKEND` and the corresponding ANYMAIL env vars; see [Anymail's provider list](https://anymail.dev/en/stable/esps/).
+
+| Mode        | Backend                     | Sends externally? | Typical use   |
+| ----------- | --------------------------- | ----------------- | ------------- |
+| Local dev   | console / locmem / Mailpit   | No                | dev/test      |
+| Staging     | Mailgun sandbox via anymail | Limited           | integration   |
+| Production  | Mailgun (real domain)       | Yes               | real sends    |
+
+- **Domain required for real sending.** A verified sender domain is needed for unrestricted delivery.
+- **Sandbox (e.g. Mailgun):** Can send only to authorized recipients; see [Mailgun sandbox docs](https://documentation.mailgun.com/en/latest/api-sending.html#sandbox) for limits.
+- **Mailgun example:** Set `DJANGO_EMAIL_BACKEND=anymail.backends.mailgun.EmailBackend`, `EMAIL_SENDING_ENABLED=true`, `DEFAULT_FROM_EMAIL`, `MAILGUN_API_KEY`, `MAILGUN_SENDER_DOMAIN`, and optionally `MAILGUN_API_URL` (for region-specific endpoint). Without a real domain you cannot fully test delivery, but the code path and settings can be validated (e.g. via provider dashboard or sandbox).
 
 ## Tailwind + Flowbite
 - Input: `static/src/input.css`
