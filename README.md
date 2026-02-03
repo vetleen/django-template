@@ -3,7 +3,7 @@
 ## Setup
 
 ### Prerequisites
-- Python 3.8+ (Python 3.14+ recommended)
+- Python 3.12 (pinned in `.python-version`; used by Heroku buildpack)
 - Node.js and npm (for Tailwind CSS and Flowbite)
 - Redis (required for Django Channels/WebSocket support)
 
@@ -28,8 +28,10 @@
    - Django Channels (for WebSocket support)
    - channels-redis (Redis backend for Channels)
    - daphne (ASGI server)
+   - django-anymail (optional; for production email via Mailgun etc.)
    - openai (OpenAI API client)
    - tiktoken (token counting)
+   - whitenoise (static files), dj-database-url + psycopg2-binary (Postgres on Heroku)
 
 3. **Install Node dependencies:**
    ```bash
@@ -109,6 +111,7 @@ Note: The chat application requires WebSocket support, so use one of the above m
 | `REDIS_URL` | Set by Redis add-on | Heroku Redis uses `rediss://` (TLS); settings skip cert verification for the channel layer |
 | `DJANGO_ALLOWED_HOSTS` | Optional | Default includes `.herokuapp.com` |
 | `EMAIL_VERIFICATION_REQUIRED` | Optional | Set `False` to allow login without verifying email (e.g. dev/staging) |
+| **Production email (Mailgun)** | When using real email | `DJANGO_EMAIL_BACKEND=anymail.backends.mailgun.EmailBackend`, `EMAIL_SENDING_ENABLED=true`, `DEFAULT_FROM_EMAIL`, `MAILGUN_API_KEY`, `MAILGUN_SENDER_DOMAIN`. See [Email modes and django-anymail](#email-modes-and-django-anymail). |
 
 **Gotchas we’ve fixed (for reference):**
 
@@ -121,14 +124,14 @@ Note: The chat application requires WebSocket support, so use one of the above m
 ### Running Tests
 
 ```bash
-# Account tests (auth, signup, password reset, email verification)
+# Account tests (auth, signup, password reset, email verification, email config)
 python manage.py test accounts
 
 # Chat application tests (comprehensive, includes WebSocket tests)
 python manage.py test llm_chat
 
-# LLM service tests (requires OPENAI_API_KEY)
-TEST_APIS=True python manage.py test llm_service
+# OpenAI service tests (requires OPENAI_API_KEY)
+TEST_APIS=True python manage.py test openai_service
 ```
 
 ## Admin & superuser (dev)
@@ -236,9 +239,9 @@ New signups must verify their email before they can log in (when `EMAIL_VERIFICA
 - Implemented via `@custom-variant dark` in `static/src/input.css`, inline script in `<head>` to avoid FOUC, and context processor `accounts.context_processors.theme` that passes `theme` into templates.
 - **Theme update:** `POST /accounts/settings/theme/` with `theme=light` or `theme=dark` (login required); returns JSON `{"theme": "…"}`.
 
-## LLM Service
+## OpenAI Service
 
-The `llm_service` app provides a centralized service for interacting with OpenAI's Responses API.
+The `openai_service` app provides a centralized service for interacting with OpenAI's Responses API.
 
 ### Features
 - Structured JSON output with schema validation
@@ -251,7 +254,7 @@ The `llm_service` app provides a centralized service for interacting with OpenAI
 
 **Non-streaming (blocking):**
 ```python
-from llm_service.services import LLMService
+from openai_service.services import LLMService
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -303,7 +306,7 @@ for event_type, event in gen:
 Both methods support tool calling with automatic execution. Define tools and pass them:
 
 ```python
-from llm_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
+from openai_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
 
 call_log = service.call_llm(
     user_prompt="Get the secret number",
@@ -329,18 +332,18 @@ All calls are automatically tracked in:
 - `LLMCallLog`: Individual call logs with tokens, cost, and response data
 - `UserMonthlyUsage`: Monthly aggregates per user
 
-View in admin: `/admin/llm_service/`
+View in admin: `/admin/llm_service/` (app label kept for DB compatibility)
 
 ### Testing
 
 Run tests with `TEST_APIS=True`:
 ```bash
-TEST_APIS=True python manage.py test llm_service
+TEST_APIS=True python manage.py test openai_service
 ```
 
 Tests are in:
-- `llm_service/tests/test_llm_service.py` - Non-streaming tests
-- `llm_service/tests/test_llm_service_stream.py` - Streaming tests
+- `openai_service/tests/test_llm_service.py` - Non-streaming tests
+- `openai_service/tests/test_llm_service_stream.py` - Streaming tests
 
 ## Chat Application (`llm_chat`)
 

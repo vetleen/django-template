@@ -3,9 +3,9 @@ import json
 from unittest import skipUnless
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from llm_service.services import LLMService
-from llm_service.models import LLMCallLog
-from llm_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
+from openai_service.services import LLMService
+from openai_service.models import LLMCallLog
+from openai_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
 
 User = get_user_model()
 
@@ -408,7 +408,7 @@ class LLMServiceStreamAPITest(TestCase):
             "additionalProperties": False,
         }
         
-        from llm_service.models import UserMonthlyUsage
+        from openai_service.models import UserMonthlyUsage
         from datetime import datetime
         
         # Get initial usage count

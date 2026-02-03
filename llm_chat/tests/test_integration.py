@@ -19,7 +19,7 @@ from django.test import TestCase, override_settings
 
 from config.asgi import application
 from llm_chat.models import ChatThread
-from llm_service.models import LLMCallLog
+from openai_service.models import LLMCallLog
 
 
 User = get_user_model()
@@ -226,7 +226,7 @@ class ChatIntegrationTest(TestCase):
         6. Messages are persisted to database
         """
         from llm_chat.models import ChatMessage, ChatThread
-        from llm_service.models import LLMCallLog
+        from openai_service.models import LLMCallLog
         
         # Setup mocked LLM service
         mock_llm_service = MockLLMService.return_value

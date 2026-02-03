@@ -1,7 +1,7 @@
 """
 Secret number tool for LLM function calling.
 """
-from llm_service.tools.registry import tool_registry
+from openai_service.tools.registry import tool_registry
 
 
 def get_secret_number():

@@ -84,7 +84,7 @@ INSTALLED_APPS = [
     "compressor",
     "core.apps.CoreConfig",
     "accounts",
-    "llm_service",
+    "openai_service",
     "llm_chat",
 ]
 if DEBUG:
