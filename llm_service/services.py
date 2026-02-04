@@ -12,9 +12,9 @@ import time
 import random
 import logging
 from django.conf import settings
-from openai_service.models import LLMCallLog
-from openai_service.utils.llm_pricing import LLMPricing
-from openai_service.tools.registry import tool_registry
+from llm_service.models import LLMCallLog
+from llm_service.utils.llm_pricing import LLMPricing
+from llm_service.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ class LLMService:
                 
                 # Track usage per user
                 if response.status == "completed":
-                    from openai_service.models import UserMonthlyUsage
+                    from llm_service.models import UserMonthlyUsage
                     from django.db import transaction
                     from decimal import Decimal
                     from datetime import datetime
@@ -574,7 +574,7 @@ class LLMService:
                 from decimal import Decimal
                 from datetime import datetime
 
-                from openai_service.models import UserMonthlyUsage
+                from llm_service.models import UserMonthlyUsage
 
                 now = datetime.now()
                 with transaction.atomic():

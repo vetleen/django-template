@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from llm_chat.models import ChatThread, ChatMessage
-from openai_service.models import LLMCallLog
+from llm_service.models import LLMCallLog
 
 
 User = get_user_model()

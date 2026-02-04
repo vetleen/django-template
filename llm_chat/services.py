@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from django.contrib.auth import get_user_model
 
-from openai_service.services import LLMService
+from llm_service.services import LLMService
 from .models import ChatMessage, ChatThread
 from .system_instructions import assemble_system_instruction
 

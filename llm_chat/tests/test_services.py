@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 
 from llm_chat.models import ChatThread
 from llm_chat.services import ChatService
-from openai_service.models import LLMCallLog
+from llm_service.models import LLMCallLog
 
 
 User = get_user_model()

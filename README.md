@@ -130,8 +130,8 @@ python manage.py test accounts
 # Chat application tests (comprehensive, includes WebSocket tests)
 python manage.py test llm_chat
 
-# OpenAI service tests (requires OPENAI_API_KEY)
-TEST_APIS=True python manage.py test openai_service
+# LLM service tests (requires OPENAI_API_KEY)
+TEST_APIS=True python manage.py test llm_service
 ```
 
 ## Admin & superuser (dev)
@@ -239,9 +239,9 @@ New signups must verify their email before they can log in (when `EMAIL_VERIFICA
 - Implemented via `@custom-variant dark` in `static/src/input.css`, inline script in `<head>` to avoid FOUC, and context processor `accounts.context_processors.theme` that passes `theme` into templates.
 - **Theme update:** `POST /accounts/settings/theme/` with `theme=light` or `theme=dark` (login required); returns JSON `{"theme": "…"}`.
 
-## OpenAI Service
+## LLM Service
 
-The `openai_service` app provides a centralized service for interacting with OpenAI's Responses API.
+The `llm_service` app provides a centralized service for interacting with OpenAI's Responses API.
 
 ### Features
 - Structured JSON output with schema validation
@@ -254,7 +254,7 @@ The `openai_service` app provides a centralized service for interacting with Ope
 
 **Non-streaming (blocking):**
 ```python
-from openai_service.services import LLMService
+from llm_service.services import LLMService
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -306,7 +306,7 @@ for event_type, event in gen:
 Both methods support tool calling with automatic execution. Define tools and pass them:
 
 ```python
-from openai_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
+from llm_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
 
 call_log = service.call_llm(
     user_prompt="Get the secret number",
@@ -332,18 +332,18 @@ All calls are automatically tracked in:
 - `LLMCallLog`: Individual call logs with tokens, cost, and response data
 - `UserMonthlyUsage`: Monthly aggregates per user
 
-View in admin: `/admin/llm_service/` (app label kept for DB compatibility)
+View in admin: `/admin/llm_service/`
 
 ### Testing
 
 Run tests with `TEST_APIS=True`:
 ```bash
-TEST_APIS=True python manage.py test openai_service
+TEST_APIS=True python manage.py test llm_service
 ```
 
 Tests are in:
-- `openai_service/tests/test_llm_service.py` - Non-streaming tests
-- `openai_service/tests/test_llm_service_stream.py` - Streaming tests
+- `llm_service/tests/test_llm_service.py` - Non-streaming tests
+- `llm_service/tests/test_llm_service_stream.py` - Streaming tests
 
 ## Chat Application (`llm_chat`)
 
