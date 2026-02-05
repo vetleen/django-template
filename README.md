@@ -241,11 +241,29 @@ New signups must verify their email before they can log in (when `EMAIL_VERIFICA
 
 ## LLM Service
 
-The `llm_service` app provides a centralized service for interacting with OpenAI's Responses API.
+The `llm_service` app provides a centralized service for LLM calls. It routes requests to providers (e.g. OpenAI) based on the chosen model. Only models in the supported registry are accepted.
+
+### Architecture
+- **Router** (`services.py`): `LLMService` exposes `call_llm` and `call_llm_stream`, resolves the model to a provider, creates `LLMCallLog`, and tracks `UserMonthlyUsage`.
+- **Providers** (`llm_service/providers/`): One module per provider (e.g. `openai.py`). Each provider handles API calls, retries, and tool invocation in its own way; tool implementations (Python functions) are shared via `tool_registry`, but how tools are sent to the API and executed is per-provider.
+- **Registry** (`registry.py`): Single source of truth for supported models: each model maps to a **provider** and a **price_plan**. Price plans are defined in `utils/llm_pricing.py` (USD per 1M tokens).
+
+### Supported models
+Only these models are accepted (use `model=` in calls). Unsupported models raise `ValueError`.
+
+| Model       | Provider | Price plan  |
+|------------|----------|-------------|
+| gpt-5.2    | openai   | gpt-5.2     |
+| gpt-5      | openai   | gpt-5       |
+| gpt-5-mini | openai   | gpt-5-mini  |
+| gpt-5-nano | openai   | gpt-5-nano  |
+| gpt-4.1    | openai   | gpt-4.1     |
+
+Default model if none is passed: `gpt-5`. To list supported models in code: `from llm_service.registry import list_supported_models; list_supported_models()`.
 
 ### Features
 - Structured JSON output with schema validation
-- Tool calling with automatic execution
+- Tool calling with automatic execution (shared tools; invocation per provider)
 - Streaming support with real-time event handling
 - Usage tracking and cost calculation
 - Comprehensive logging of all LLM calls
@@ -275,6 +293,7 @@ call_log = service.call_llm(
     json_schema=json_schema,
     schema_name="greeting",
     user=user,
+    model="gpt-5",  # Optional; default is gpt-5. Must be in supported registry.
     retries=2,  # Optional, default: 2
 )
 
@@ -332,7 +351,7 @@ All calls are automatically tracked in:
 - `LLMCallLog`: Individual call logs with tokens, cost, and response data
 - `UserMonthlyUsage`: Monthly aggregates per user
 
-View in admin: `/admin/llm_service/`
+Pricing is per **price plan** (see `llm_service/utils/llm_pricing.py`); the registry links each model to a plan. View logs in admin: `/admin/llm_service/`
 
 ### Testing
 

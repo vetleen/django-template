@@ -9,8 +9,13 @@ from typing import Dict, Optional
 class LLMPricing:
     """Handles LLM model pricing and cost calculations."""
     
-    # Pricing data in USD per 1M tokens
+    # Pricing data in USD per 1M tokens (Standard tier, from platform.openai.com/docs/pricing)
     PRICING_DATA = {
+        'gpt-5.2': {
+            'input': Decimal('1.75'),
+            'cached_input': Decimal('0.175'),
+            'output': Decimal('14.00')
+        },
         'gpt-5': {
             'input': Decimal('1.25'),
             'cached_input': Decimal('0.125'),
@@ -26,15 +31,16 @@ class LLMPricing:
             'cached_input': Decimal('0.005'),
             'output': Decimal('0.40')
         },
-        'gpt-5-chat-latest': {
-            'input': Decimal('1.25'),
-            'cached_input': Decimal('0.125'),
-            'output': Decimal('10.00')
-        },
         'gpt-4.1': {
             'input': Decimal('2.00'),
             'cached_input': Decimal('0.50'),
             'output': Decimal('8.00')
+        },
+        # Legacy/alias plans (not in registry)
+        'gpt-5-chat-latest': {
+            'input': Decimal('1.25'),
+            'cached_input': Decimal('0.125'),
+            'output': Decimal('10.00')
         },
         'gpt-4o': {
             'input': Decimal('2.50'),
