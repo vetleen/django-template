@@ -8,8 +8,10 @@ from channels.generic.websocket import JsonWebsocketConsumer
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 
+from .constants import CHAT_DEFAULT_MODEL
 from .models import ChatMessage, ChatThread
 from .services import ChatService
+from .views import _get_user_chat_model
 
 
 User = get_user_model()
@@ -108,10 +110,14 @@ class ChatConsumer(JsonWebsocketConsumer):
         
         # If no assistant message exists, trigger streaming
         if not assistant_exists:
-            # Trigger streaming by calling chat_start_stream handler
+            # Use user's stored preferred model (same as normal flow)
+            user = self.scope.get("user")
+            model = _get_user_chat_model(user) if user else CHAT_DEFAULT_MODEL
+            model = model or CHAT_DEFAULT_MODEL
             self.chat_start_stream({
                 "content": latest_user_msg.content,
-                "user_id": self.scope.get("user").id,
+                "user_id": user.id,
+                "model": model,
             })
 
     # ------------------------------------------------------------------
@@ -139,6 +145,7 @@ class ChatConsumer(JsonWebsocketConsumer):
         if not text:
             return
 
+        model = event.get("model") or CHAT_DEFAULT_MODEL
         service = ChatService()
         
         # Find the user message that was already created (by the view)
@@ -163,6 +170,7 @@ class ChatConsumer(JsonWebsocketConsumer):
             user=connected_user,
             user_message=text,
             user_message_obj=user_message_obj,
+            model=model,
         ):
             payload = self._serialize_event(event_type, event_obj)
             self.send_json(payload)

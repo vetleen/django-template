@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Any, Generator
 
 from llm_service.client import completion
-from llm_service.conf import get_default_model
+from llm_service.conf import get_default_model, should_send_reasoning_effort
 from llm_service.models import LLMCallLog
 
 
@@ -73,7 +73,7 @@ class LLMService:
         }
         if json_schema is not None:
             kwargs["response_format"] = {"type": "json_object"}
-        if reasoning_effort is not None:
+        if reasoning_effort is not None and should_send_reasoning_effort(model):
             kwargs["reasoning_effort"] = reasoning_effort
         if tools is not None:
             kwargs["tools"] = tools
@@ -139,7 +139,7 @@ class LLMService:
         }
         if json_schema is not None:
             kwargs["response_format"] = {"type": "json_object"}
-        if reasoning_effort is not None:
+        if reasoning_effort is not None and should_send_reasoning_effort(model):
             kwargs["reasoning_effort"] = reasoning_effort
         if tools is not None:
             kwargs["tools"] = tools

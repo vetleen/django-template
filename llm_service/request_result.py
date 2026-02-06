@@ -32,6 +32,7 @@ class LLMResult:
     usage: dict[str, int] | None = None  # input_tokens, output_tokens, total_tokens
     cost: float | None = None
     raw_response: Any = None
+    raw_response_chunks: list[Any] | None = None  # for streaming: list of chunk objects
     error: Exception | None = None
     provider_response_id: str | None = None
     response_model: str | None = None

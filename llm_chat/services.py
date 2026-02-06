@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from django.contrib.auth import get_user_model
 
+from llm_service.conf import get_default_model
 from llm_service.services import LLMService
 from .models import ChatMessage, ChatThread
 from .system_instructions import assemble_system_instruction
@@ -104,6 +105,7 @@ class ChatService:
         user: User,
         user_message: str,
         user_message_obj: ChatMessage | None = None,
+        model: str | None = None,
     ) -> Generator[Tuple[str, object], None, None]:
         """
         Stream a reply for a given thread and user message.
@@ -120,6 +122,7 @@ class ChatService:
             user: The user making the request
             user_message: The message text (for LLM call)
             user_message_obj: Optional pre-created ChatMessage instance (if created in view)
+            model: Optional model id (e.g. moonshot/kimi-k2.5). If None, uses LLM default.
         """
         if thread.user_id != user.id:
             raise PermissionError("User does not own this thread.")
@@ -239,8 +242,9 @@ class ChatService:
 
         try:
             # Stream events from LLMService
+            resolved_model = model or get_default_model()
             for event_type, event in self.llm_service.call_llm_stream(
-                model=None,
+                model=resolved_model,
                 reasoning_effort="low",
                 system_instructions=system_instructions,
                 user_prompt=user_message,

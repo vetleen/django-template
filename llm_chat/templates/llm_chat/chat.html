@@ -10,6 +10,21 @@
 
 <aside id="chat-sidebar" class="fixed top-16 left-0 z-30 w-64 h-[calc(100vh-5rem)] transition-transform -translate-x-full sm:translate-x-0 border-e border-t border-default" aria-label="Chat sidebar">
   <div class="h-full px-3 py-4 overflow-y-auto bg-neutral-primary-soft">
+    {% if chat_key_models %}
+    <div class="mb-4">
+      
+      <select
+        id="model-select"
+        class="w-full rounded-base border border-default-medium bg-neutral-primary text-heading text-sm focus:ring-2 focus:ring-brand focus:border-brand focus:outline-none p-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-label="Preferred chat model"
+        {% if has_streaming %}disabled{% endif %}
+      >
+        {% for m in chat_key_models %}
+        <option value="{{ m.value }}" {% if m.value == chat_default_model %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <ul class="space-y-2 font-medium">
       <li>
         <a href="{% url 'chat' %}" class="flex items-center px-2 py-1.5 text-body rounded-base hover:bg-neutral-tertiary hover:text-fg-brand group">
@@ -546,7 +561,27 @@
 
       const input = form.querySelector('textarea[name="message"]');
       const button = form.querySelector('button[type="submit"]');
+      const modelSelect = document.getElementById("model-select");
       const messagesContainer = document.getElementById("chat-messages");
+      
+      // Save preferred model when user changes the dropdown (user setting)
+      if (modelSelect) {
+        modelSelect.addEventListener("change", function() {
+          const model = this.value;
+          if (!model) return;
+          const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+          const csrf = csrfInput ? csrfInput.value : "";
+          fetch("{% url 'chat_preferred_model_update' %}", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrf,
+              "X-Requested-With": "XMLHttpRequest",
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: "model=" + encodeURIComponent(model),
+          }).catch(function(err) { console.error("Failed to save preferred model:", err); });
+        });
+      }
       
       // Render markdown for all server-rendered messages on page load
       // Only process elements within the chat messages container to avoid affecting sidebar
@@ -1065,6 +1100,7 @@
           // Disable form when connecting/disconnected
           input.disabled = true;
           button.disabled = true;
+          if (modelSelect) modelSelect.disabled = true;
         } else if (connected) {
           // Hide spinner, show green status dot (no text when connected)
           if (spinner) spinner.classList.add("hidden");
@@ -1078,6 +1114,7 @@
           if (!currentStreamingElement) {
             input.disabled = false;
             button.disabled = false;
+            if (modelSelect) modelSelect.disabled = false;
           }
         } else {
           // Disconnected: hide spinner, show red status dot
@@ -1096,6 +1133,7 @@
           // Disable form when disconnected
           input.disabled = true;
           button.disabled = true;
+          if (modelSelect) modelSelect.disabled = true;
         }
       }
 
@@ -1182,6 +1220,7 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
               if (input) input.disabled = false;
               if (button) button.disabled = false;
+              if (modelSelect) modelSelect.disabled = false;
               if (input) input.focus();
             }
           }
@@ -1261,6 +1300,7 @@
           if (ws && ws.readyState === WebSocket.OPEN) {
             if (input) input.disabled = false;
             if (button) button.disabled = false;
+            if (modelSelect) modelSelect.disabled = false;
           }
         }
       }
@@ -1368,6 +1408,7 @@
         autoResizeTextarea(input); // Reset height to minimum
         input.disabled = true;
         button.disabled = true;
+        if (modelSelect) modelSelect.disabled = true;
         locked = true;
         
         // Reset streaming state for new message
@@ -1381,6 +1422,8 @@
         const url = form.getAttribute("action") || window.location.pathname;
         const formData = new FormData(form);
         formData.set("message", messageText);
+        // Send current dropdown model so the message uses it even if save is still in flight (avoids one-message lag)
+        if (modelSelect && modelSelect.value) formData.set("model", modelSelect.value);
 
         // If no active thread, we need to connect WebSocket first (to a temporary group)
         // then send POST, then switch to the actual thread group
@@ -1483,6 +1526,7 @@
         // We have a thread - disable form until WebSocket connects
         if (input) input.disabled = true;
         if (button) button.disabled = true;
+        if (modelSelect) modelSelect.disabled = true;
         // Connect when page loads (messages are already rendered from server)
         connect(activeThreadId);
       } else {
@@ -1495,6 +1539,10 @@
         if (button) {
           button.disabled = false;
           button.removeAttribute("disabled");
+        }
+        if (modelSelect) {
+          modelSelect.disabled = false;
+          modelSelect.removeAttribute("disabled");
         }
         // Hide connection status for new chat
         const connectionStatus = document.getElementById("connection-status");
@@ -1548,6 +1596,7 @@
           if (connectionStatus) connectionStatus.style.display = "none";
           if (input) input.disabled = false;
           if (button) button.disabled = false;
+          if (modelSelect) modelSelect.disabled = false;
           updateSidebarActiveState(null);
         }
       });

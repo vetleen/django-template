@@ -42,3 +42,15 @@ def get_pre_call_hooks():
 def get_post_call_hooks():
     """List of callables(result: LLMResult) -> None; raise to block."""
     return list(getattr(settings, "LLM_POST_CALL_HOOKS", []))
+
+
+# Model prefixes that do not support reasoning_effort; omit the param for these.
+# Extend when a provider rejects or ignores reasoning_effort.
+REASONING_EFFORT_DISALLOWED_PREFIXES = ("moonshot/",)
+
+
+def should_send_reasoning_effort(model: str | None) -> bool:
+    """True if we should include reasoning_effort in the request for this model."""
+    if not model:
+        return True
+    return not any(model.startswith(prefix) for prefix in REASONING_EFFORT_DISALLOWED_PREFIXES)

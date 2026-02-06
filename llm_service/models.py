@@ -35,12 +35,14 @@ class LLMCallLog(models.Model):
     request_kwargs = models.JSONField(default=dict, blank=True)
     prompt_hash = models.CharField(max_length=64, blank=True)
     prompt_preview = models.TextField(blank=True)
+    user_message_preview = models.CharField(max_length=300, blank=True)
 
     # Response
     provider_response_id = models.CharField(max_length=255, blank=True, null=True)
     response_model = models.CharField(max_length=255, blank=True, null=True)
     response_preview = models.TextField(blank=True)
     response_hash = models.CharField(max_length=64, blank=True, null=True)
+    raw_response_payload = models.TextField(blank=True)
 
     # Usage / cost
     input_tokens = models.PositiveIntegerField(default=0)

@@ -1,10 +1,11 @@
 """
-Live API tests: real calls to the provider (OpenAI gpt-5-nano).
+Live API tests: real calls to providers (OpenAI, Anthropic, Gemini, Moonshot).
 
-Run only when TEST_APIS=True and OPENAI_API_KEY is set:
+Run only when TEST_APIS=True and the relevant API key is set:
     TEST_APIS=True python manage.py test llm_service.tests.test_live_api -v 2
 
-Tests: basic completion, structured (JSON) response, streaming, tool use.
+Tests: basic completion (OpenAI + one per provider), structured JSON, streaming, tool use.
+(Chat-setup compatibility per model lives in llm_chat.tests.test_live_chat_setup.)
 """
 import json
 import os
@@ -177,3 +178,49 @@ class LiveToolUseTest(TestCase):
             if isinstance(args, str):
                 args = json.loads(args) if args.strip() else {}
             self.assertIn("location", args)
+
+
+def _live_simple_completion_test(model: str) -> None:
+    """Helper: run one simple completion and assert non-empty content and one log."""
+    from llm_service.client import completion
+
+    initial_count = LLMCallLog.objects.count()
+    resp = completion(
+        model=model,
+        messages=[{"role": "user", "content": "Reply with exactly the word OK and nothing else."}],
+    )
+    assert resp is not None
+    assert getattr(resp, "choices", None) and len(resp.choices) > 0
+    content = getattr(resp.choices[0].message, "content", None) or ""
+    assert isinstance(content, str)
+    assert len(content.strip()) > 0, "Expected non-empty response content"
+    assert LLMCallLog.objects.count() == initial_count + 1
+    log = LLMCallLog.objects.order_by("-created_at").first()
+    assert log.model == model
+    assert log.status == LLMCallLog.Status.SUCCESS
+
+
+@override_settings(LLM_ALLOWED_MODELS=["anthropic/claude-sonnet-4-5-20250929"])
+@REQUIRES_LIVE
+class LiveAnthropicCompletionTest(TestCase):
+    """Simple completion against Anthropic (requires ANTHROPIC_API_KEY)."""
+
+    def tearDown(self):
+        import llm_service.client as client_mod
+        client_mod._client = None
+
+    def test_anthropic_simple_completion(self):
+        _live_simple_completion_test("anthropic/claude-sonnet-4-5-20250929")
+
+
+@override_settings(LLM_ALLOWED_MODELS=["gemini/gemini-3-flash-preview"])
+@REQUIRES_LIVE
+class LiveGeminiCompletionTest(TestCase):
+    """Simple completion against Gemini (requires GEMINI_API_KEY)."""
+
+    def tearDown(self):
+        import llm_service.client as client_mod
+        client_mod._client = None
+
+    def test_gemini_simple_completion(self):
+        _live_simple_completion_test("gemini/gemini-3-flash-preview")

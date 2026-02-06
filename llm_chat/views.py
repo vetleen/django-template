@@ -2,9 +2,31 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+
+from accounts.models import UserSettings
+from llm_service.conf import get_allowed_models
+
+from .constants import CHAT_DEFAULT_MODEL, CHAT_KEY_MODELS
+
+
+def _get_user_chat_model(user) -> str | None:
+    """Return the user's stored chat model if allowed, else app default (if allowed), else first allowed."""
+    allowed = set(get_allowed_models())
+    if not allowed:
+        return None
+    try:
+        stored = (user.settings.chat_model or "").strip()
+    except UserSettings.DoesNotExist:
+        stored = ""
+    if stored and stored in allowed:
+        return stored
+    if CHAT_DEFAULT_MODEL in allowed:
+        return CHAT_DEFAULT_MODEL
+    return list(allowed)[0]
 
 
 @login_required
@@ -61,7 +83,17 @@ def chat_view(request, thread_id=None, **kwargs):
             channel_layer = get_channel_layer()
             group_name = f"thread_{active_thread.id}"
             
-            # Send the group_send event
+            # Model: use form value if present and allowed (avoids one-message lag after dropdown change);
+            # otherwise use stored preference. Save form value to settings so reload stays in sync.
+            allowed = set(get_allowed_models())
+            form_model = (request.POST.get("model") or "").strip()
+            if form_model and form_model in allowed:
+                model = form_model
+                settings_obj, _ = UserSettings.objects.get_or_create(user=request.user)
+                settings_obj.chat_model = model
+                settings_obj.save(update_fields=["chat_model"])
+            else:
+                model = _get_user_chat_model(request.user)
             # Note: If WebSocket isn't connected yet, the consumer will check for
             # pending messages when it connects (see _check_and_process_pending_messages)
             async_to_sync(channel_layer.group_send)(
@@ -70,6 +102,7 @@ def chat_view(request, thread_id=None, **kwargs):
                     "type": "chat.start_stream",
                     "content": message_text,
                     "user_id": request.user.id,
+                    "model": model,
                 },
             )
 
@@ -140,6 +173,11 @@ def chat_view(request, thread_id=None, **kwargs):
         older_cursor = None
         has_streaming = False
     
+    allowed = set(get_allowed_models())
+    chat_key_models = [{"value": m[0], "label": m[1]} for m in CHAT_KEY_MODELS if m[0] in allowed]
+    chat_default_model = _get_user_chat_model(request.user) or (
+        chat_key_models[0]["value"] if chat_key_models else None
+    )
     context = {
         "threads": threads,
         "active_thread": active_thread,
@@ -147,6 +185,8 @@ def chat_view(request, thread_id=None, **kwargs):
         "has_older": has_older,
         "older_cursor": older_cursor,
         "has_streaming": has_streaming,
+        "chat_key_models": chat_key_models,
+        "chat_default_model": chat_default_model,
     }
     return render(request, "llm_chat/chat.html", context)
 
@@ -220,3 +260,28 @@ def chat_messages_json(request, thread_id):
         "thread_id": str(thread.id),
         "thread_title": thread.title or "Untitled chat",
     })
+
+
+def _get_preferred_model_response(user):
+    """Return JSON-serialisable dict with current preferred model for user."""
+    model = _get_user_chat_model(user)
+    return {"model": model or ""}
+
+
+@login_required
+def chat_preferred_model_update(request):
+    """GET: return current preferred model. POST: save preferred model (body or form: model=<id>)."""
+    if request.method == "GET":
+        return JsonResponse(_get_preferred_model_response(request.user))
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    model = (request.POST.get("model") or request.body.decode("utf-8").strip() or "").strip()
+    if not model:
+        return JsonResponse({"error": "Missing model"}, status=400)
+    allowed = set(get_allowed_models())
+    if model not in allowed:
+        return JsonResponse({"error": "Model not allowed"}, status=400)
+    settings, _ = UserSettings.objects.get_or_create(user=request.user)
+    settings.chat_model = model
+    settings.save(update_fields=["chat_model"])
+    return JsonResponse({"model": settings.chat_model})

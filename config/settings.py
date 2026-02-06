@@ -265,7 +265,12 @@ LLM_ALLOWED_MODELS = [
     m.strip()
     for m in os.environ.get(
         "LLM_ALLOWED_MODELS",
-        "openai/gpt-5.2,openai/gpt-5-mini,openai/gpt-5-nano",
+        (
+            "openai/gpt-5.2,openai/gpt-5-mini,openai/gpt-5-nano,"
+            "anthropic/claude-sonnet-4-5-20250929,anthropic/claude-opus-4-1-20250805,anthropic/claude-3-5-haiku-20241022,"
+            "gemini/gemini-3-pro-preview,gemini/gemini-3-flash-preview,gemini/gemini-2.5-pro,gemini/gemini-2.5-flash,gemini/gemini-2.5-flash-lite,"
+            "moonshot/kimi-k2.5,moonshot/kimi-k2-thinking"
+        ),
     ).split(",")
     if m.strip()
 ]
