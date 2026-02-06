@@ -44,16 +44,7 @@ class ChatMessageTokenCountingTest(TestCase):
         self.assertGreaterEqual(msg.token_count, 0)
 
     def test_token_count_with_llm_model(self):
-        llm_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test_models.py:test_token_count_with_llm_model",
-            model="gpt-4o-mini",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="",
-            json_schema={},
-            schema_name="test",
-        )
+        llm_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         msg = ChatMessage.objects.create(
             thread=self.thread,

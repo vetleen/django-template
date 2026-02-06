@@ -23,7 +23,7 @@ from accounts.views.auth import index
 urlpatterns = [
     path('', index, name='index'),
     path("accounts/", include(("accounts.urls", "accounts"), namespace="accounts")),
-    path('chat/', include('llm_chat.urls')),
+    path("chat/", include("llm_chat.urls")),
     path('admin/', admin.site.urls),
 ]
 

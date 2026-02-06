@@ -63,18 +63,7 @@ class ChatIntegrationTest(TestCase):
         mock_llm_service = MockLLMService.return_value
 
         # Create a real LLMCallLog instance
-        call_log = await sync_to_async(LLMCallLog.objects.create)(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Test message",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Hello world"},
-            succeeded=True,
-        )
+        call_log = await sync_to_async(LLMCallLog.objects.create)(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             """Fake LLM stream that yields events."""
@@ -149,18 +138,7 @@ class ChatIntegrationTest(TestCase):
         mock_llm_service = MockLLMService.return_value
 
         # Create a real LLMCallLog instance
-        call_log = await sync_to_async(LLMCallLog.objects.create)(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Test",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "First Second Third"},
-            succeeded=True,
-        )
+        call_log = await sync_to_async(LLMCallLog.objects.create)(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta="First "))
@@ -232,18 +210,7 @@ class ChatIntegrationTest(TestCase):
         mock_llm_service = MockLLMService.return_value
 
         # Create a real LLMCallLog instance for the mock
-        call_log = await sync_to_async(LLMCallLog.objects.create)(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Hello, new chat!",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Hello from new chat"},
-            succeeded=True,
-        )
+        call_log = await sync_to_async(LLMCallLog.objects.create)(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta="Hello "))
@@ -339,42 +306,23 @@ class ChatIntegrationTest(TestCase):
         mock_llm_service = MockLLMService.return_value
         
         # Create LLMCallLog for streaming response
-        stream_call_log = await sync_to_async(LLMCallLog.objects.create)(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Python is a programming language"},
-            succeeded=True,
-        )
-        
-        # Create LLMCallLog for title generation
-        title_call_log = await sync_to_async(LLMCallLog.objects.create)(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_title",
-            parsed_json={"title": "Python Programming"},
-            succeeded=True,
-        )
-        
+        stream_call_log = await sync_to_async(LLMCallLog.objects.create)(model="openai/gpt-5-nano")
+        title_call_log = await sync_to_async(LLMCallLog.objects.create)(model="openai/gpt-5-nano")
+        from types import SimpleNamespace
+
         def fake_stream(**kwargs):
             """Fake LLM stream that yields events."""
             yield ("response.output_text.delta", mock.Mock(delta="Python "))
             yield ("response.output_text.delta", mock.Mock(delta="is a programming language"))
             yield ("final", {"call_log": stream_call_log, "response": object()})
-        
+
         def fake_title_call(**kwargs):
-            """Fake LLM call for title generation."""
-            return title_call_log
+            """Fake LLM call for title generation (ChatService expects .succeeded, .parsed_json, .call_log)."""
+            return SimpleNamespace(
+                succeeded=True,
+                parsed_json={"title": "Python Programming"},
+                call_log=title_call_log,
+            )
         
         mock_llm_service.call_llm_stream.side_effect = fake_stream
         mock_llm_service.call_llm.side_effect = fake_title_call

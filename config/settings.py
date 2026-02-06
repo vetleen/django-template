@@ -84,8 +84,8 @@ INSTALLED_APPS = [
     "compressor",
     "core.apps.CoreConfig",
     "accounts",
-    "llm_service",
-    "llm_chat",
+    "llm_service.apps.LlmServiceConfig",
+    "llm_chat.apps.LlmChatConfig",
 ]
 if DEBUG:
     INSTALLED_APPS.extend([
@@ -259,8 +259,22 @@ if not DEBUG:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# LLM Service settings
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# LLM Service (LiteLLM)
+LLM_DEFAULT_MODEL = os.environ.get("LLM_DEFAULT_MODEL", "openai/gpt-5.2")
+LLM_ALLOWED_MODELS = [
+    m.strip()
+    for m in os.environ.get(
+        "LLM_ALLOWED_MODELS",
+        "openai/gpt-5.2,openai/gpt-5-mini,openai/gpt-5-nano",
+    ).split(",")
+    if m.strip()
+]
+LLM_REQUEST_TIMEOUT = float(os.environ.get("LLM_REQUEST_TIMEOUT", "60"))
+LLM_MAX_RETRIES = int(os.environ.get("LLM_MAX_RETRIES", "2"))
+LLM_LOG_WRITE_TIMEOUT = float(os.environ.get("LLM_LOG_WRITE_TIMEOUT", "5"))
+# Optional: list of callables for guardrails (pre: LLMRequest, post: LLMResult)
+# LLM_PRE_CALL_HOOKS = []
+# LLM_POST_CALL_HOOKS = []
 
 # Channels / Redis
 _redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")

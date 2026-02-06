@@ -71,9 +71,9 @@ class ChatService:
         
         try:
             call_log = self.llm_service.call_llm(
-                model="gpt-5-nano",
+                model="openai/gpt-5-nano",
                 reasoning_effort="low",
-                system_instructions="Generate a short, descriptive title (max 30 characters) for this chat conversation based on the user's first message. The title should be concise and capture the main topic or intent.",
+                system_instructions="Respond with valid JSON only, using a single key 'title'. Generate a short, descriptive title (max 30 characters) for this chat conversation based on the user's first message. The title should be concise and capture the main topic or intent.",
                 user_prompt=user_message,
                 tools=None,
                 json_schema=self._title_schema,

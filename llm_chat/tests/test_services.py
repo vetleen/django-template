@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest import TestCase, mock
 import uuid
 
@@ -9,6 +10,11 @@ from llm_service.models import LLMCallLog
 
 
 User = get_user_model()
+
+
+def _llm_log():
+    """Create a minimal valid LLMCallLog for tests (current schema has no parsed_json/succeeded)."""
+    return LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
 
 class ChatServiceTest(TestCase):
@@ -35,19 +41,7 @@ class ChatServiceTest(TestCase):
     def test_stream_reply_yields_events_from_llm_service(self, MockLLMService):
         mock_service_instance = MockLLMService.return_value
 
-        # Create a real LLMCallLog instance
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Hello",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Hi"},
-            succeeded=True,
-        )
+        call_log = _llm_log()
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta="Hi"))
@@ -73,19 +67,7 @@ class ChatServiceTest(TestCase):
         """Test that deltas sent to frontend contain only message content, not JSON structure."""
         mock_service_instance = MockLLMService.return_value
 
-        # Create a real LLMCallLog instance with parsed JSON
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Hello",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Hi there! How can I help you today?"},
-            succeeded=True,
-        )
+        call_log = _llm_log()
 
         # Simulate JSON streaming: deltas arrive as JSON chunks
         def fake_json_stream(**kwargs):
@@ -129,18 +111,7 @@ class ChatServiceTest(TestCase):
         """Test that complete JSON in a single delta is properly extracted."""
         mock_service_instance = MockLLMService.return_value
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Hello",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": "Hi there! How can I help you today?"},
-            succeeded=True,
-        )
+        call_log = _llm_log()
 
         # Simulate complete JSON arriving in one delta
         def fake_stream(**kwargs):
@@ -177,20 +148,12 @@ class ChatServiceTest(TestCase):
         # Create a thread with default title
         thread = ChatThread.objects.create(user=self.user, title="New chat")
         
-        # Mock successful LLM call
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_title",
-            parsed_json={"title": "Python Programming"},
+        # Mock successful LLM call (ChatService expects .succeeded, .parsed_json, .call_log)
+        mock_service_instance.call_llm.return_value = SimpleNamespace(
             succeeded=True,
+            parsed_json={"title": "Python Programming"},
+            call_log=_llm_log(),
         )
-        mock_service_instance.call_llm.return_value = call_log
         
         service = ChatService()
         title = service.generate_thread_title(
@@ -233,19 +196,11 @@ class ChatServiceTest(TestCase):
         thread = ChatThread.objects.create(user=self.user, title="New chat")
         
         # Mock failed LLM call
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_title",
-            parsed_json=None,
+        mock_service_instance.call_llm.return_value = SimpleNamespace(
             succeeded=False,
+            parsed_json=None,
+            call_log=_llm_log(),
         )
-        mock_service_instance.call_llm.return_value = call_log
         
         service = ChatService()
         title = service.generate_thread_title(
@@ -288,20 +243,12 @@ class ChatServiceTest(TestCase):
         # Create a thread with default title
         thread = ChatThread.objects.create(user=self.user, title="New chat")
         
-        # Mock successful LLM call
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_title",
-            parsed_json={"title": "Python Programming"},
+        # Mock successful LLM call (ChatService expects .succeeded, .parsed_json, .call_log)
+        mock_service_instance.call_llm.return_value = SimpleNamespace(
             succeeded=True,
+            parsed_json={"title": "Python Programming"},
+            call_log=_llm_log(),
         )
-        mock_service_instance.call_llm.return_value = call_log
         
         service = ChatService()
         title = service.generate_thread_title(
@@ -344,19 +291,11 @@ class ChatServiceTest(TestCase):
         thread = ChatThread.objects.create(user=self.user, title="New chat")
         
         # Mock failed LLM call
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="What is Python?",
-            json_schema={},
-            schema_name="chat_title",
-            parsed_json=None,
+        mock_service_instance.call_llm.return_value = SimpleNamespace(
             succeeded=False,
+            parsed_json=None,
+            call_log=_llm_log(),
         )
-        mock_service_instance.call_llm.return_value = call_log
         
         service = ChatService()
         title = service.generate_thread_title(

@@ -241,7 +241,7 @@ class ChatConsumer(JsonWebsocketConsumer):
             call_log_id = getattr(call_log, "id", None) if call_log else None
             return {
                 "event_type": event_type,
-                "call_log_id": call_log_id,
+                "call_log_id": str(call_log_id) if call_log_id is not None else None,
             }
 
         # Generic fallback

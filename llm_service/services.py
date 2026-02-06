@@ -1,153 +1,161 @@
 """
-LLM Service: thin router that delegates to providers (e.g. OpenAI).
-Owns LLMCallLog creation and usage tracking; providers return neutral result dicts.
+Adapter used by llm_chat: exposes call_llm and call_llm_stream backed by llm_service.client.
 """
+from __future__ import annotations
 
-import inspect
-import logging
+import json
+import uuid
+from types import SimpleNamespace
+from typing import Any, Generator
 
-from decimal import Decimal
-from datetime import datetime
-
-from django.db import transaction
-
-from llm_service.models import LLMCallLog, UserMonthlyUsage
-from llm_service.providers import get_provider
-
-logger = logging.getLogger(__name__)
+from llm_service.client import completion
+from llm_service.conf import get_default_model
+from llm_service.models import LLMCallLog
 
 
-def _get_caller_info():
-    try:
-        frame = inspect.stack()[2]
-        return f"{frame.filename}:{frame.function}:{frame.lineno}"
-    except (IndexError, AttributeError):
-        return "unknown"
+def _messages(system_instructions: str, user_prompt: str) -> list[dict[str, Any]]:
+    msgs = []
+    if system_instructions:
+        msgs.append({"role": "system", "content": system_instructions})
+    msgs.append({"role": "user", "content": user_prompt})
+    return msgs
 
 
-def _result_to_call_log(result: dict, caller_info: str) -> LLMCallLog:
-    """Build and save LLMCallLog from a provider result dict."""
-    return LLMCallLog.objects.create(
-        raw_response=result["raw_response"],
-        caller=caller_info,
-        model=result["model"],
-        reasoning_effort=result["reasoning_effort"],
-        system_instructions=result["system_instructions"],
-        user_prompt=result["user_prompt"],
-        json_schema=result["json_schema"],
-        schema_name=result["schema_name"],
-        parsed_json=result.get("parsed_json"),
-        input_tokens=result.get("input_tokens", 0),
-        output_tokens=result.get("output_tokens", 0),
-        cached_tokens=result.get("cached_tokens", 0),
-        reasoning_tokens=result.get("reasoning_tokens", 0),
-        total_tokens=result.get("total_tokens", 0),
-        succeeded=result.get("succeeded", False),
-        llm_cost_usd=result.get("llm_cost_usd", 0),
-        response_time_seconds=result.get("response_time_seconds", 0),
-    )
+def _text_from_response(response: Any) -> str:
+    if not response or not getattr(response, "choices", None) or len(response.choices) == 0:
+        return ""
+    c = response.choices[0]
+    msg = getattr(c, "message", None)
+    if not msg:
+        return ""
+    return getattr(msg, "content", None) or ""
 
 
-def _track_usage(user, cost, total_tokens: int):
-    """Update UserMonthlyUsage for the given user."""
-    now = datetime.now()
-    with transaction.atomic():
-        try:
-            usage = UserMonthlyUsage.objects.select_for_update().get(
-                user=user, year=now.year, month=now.month
-            )
-            usage.total_cost_usd += Decimal(str(cost))
-            usage.total_tokens += total_tokens
-            usage.total_calls += 1
-            usage.save()
-        except UserMonthlyUsage.DoesNotExist:
-            UserMonthlyUsage.objects.create(
-                user=user,
-                year=now.year,
-                month=now.month,
-                total_cost_usd=Decimal(str(cost)),
-                total_tokens=total_tokens,
-                total_calls=1,
-            )
+def _delta_from_chunk(chunk: Any) -> str:
+    if not chunk or not getattr(chunk, "choices", None) or len(chunk.choices) == 0:
+        return ""
+    delta = getattr(chunk.choices[0], "delta", None)
+    if not delta:
+        return ""
+    return getattr(delta, "content", None) or ""
 
 
 class LLMService:
     """
-    Central service for LLM operations. Routes to the appropriate provider
-    (e.g. OpenAI) based on model, creates LLMCallLog, and tracks usage.
+    High-level API for llm_chat: call_llm (sync, optional JSON schema) and call_llm_stream.
+    Uses llm_service.client.completion under the hood; logs are written by the client.
     """
-
-    def __init__(self):
-        self.model = "gpt-5"
 
     def call_llm(
         self,
-        model: str = None,
-        reasoning_effort: str = "low",
-        system_instructions: str = None,
-        user_prompt: str = None,
-        tools: list = None,
-        json_schema: dict = None,
-        schema_name: str = None,
-        retries: int = 2,
-        user=None,
-    ):
-        if not json_schema or not schema_name:
-            raise ValueError("json_schema and schema_name are required for structured calls")
-        if not user:
-            raise ValueError("user parameter is required for usage tracking")
+        *,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+        system_instructions: str = "",
+        user_prompt: str = "",
+        tools: Any = None,
+        json_schema: dict[str, Any] | None = None,
+        schema_name: str | None = None,
+        user: Any = None,
+    ) -> Any:
+        """
+        Single completion. Returns an object with .succeeded, .parsed_json (if json_schema),
+        and .call_log (LLMCallLog when available).
+        """
+        model = model or get_default_model()
+        request_id = str(uuid.uuid4())
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": _messages(system_instructions, user_prompt),
+            "stream": False,
+            "metadata": {"request_id": request_id},
+            "user": user,
+        }
+        if json_schema is not None:
+            kwargs["response_format"] = {"type": "json_object"}
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        if tools is not None:
+            kwargs["tools"] = tools
 
-        model = model or self.model
-        provider = get_provider(model)
-        result = provider.call_llm(
-            model=model,
-            reasoning_effort=reasoning_effort,
-            system_instructions=system_instructions,
-            user_prompt=user_prompt,
-            tools=tools,
-            json_schema=json_schema,
-            schema_name=schema_name,
-            retries=retries,
+        try:
+            response = completion(**kwargs)
+        except Exception as e:
+            log = (
+                LLMCallLog.objects.filter(request_id=request_id)
+                .order_by("-created_at")
+                .first()
+            )
+            return SimpleNamespace(
+                succeeded=False,
+                parsed_json=None,
+                call_log=log,
+                error=str(e),
+            )
+
+        text = _text_from_response(response)
+        parsed_json = None
+        if json_schema is not None and text:
+            try:
+                parsed_json = json.loads(text)
+            except (json.JSONDecodeError, ValueError):
+                parsed_json = None
+
+        log = (
+            LLMCallLog.objects.filter(request_id=request_id)
+            .order_by("-created_at")
+            .first()
         )
-        call_log = _result_to_call_log(result, _get_caller_info())
-        if result.get("succeeded"):
-            _track_usage(user, result.get("llm_cost_usd", 0), result.get("total_tokens", 0))
-        return call_log
+        return SimpleNamespace(
+            succeeded=True,
+            parsed_json=parsed_json,
+            call_log=log,
+        )
 
     def call_llm_stream(
         self,
+        *,
         model: str | None = None,
-        reasoning_effort: str = "low",
-        system_instructions: str | None = None,
-        user_prompt: str | None = None,
-        tools: list | None = None,
-        json_schema: dict | None = None,
+        reasoning_effort: str | None = None,
+        system_instructions: str = "",
+        user_prompt: str = "",
+        tools: Any = None,
+        json_schema: dict[str, Any] | None = None,
         schema_name: str | None = None,
-        retries: int = 2,
-        user=None,
-    ):
-        if not json_schema or not schema_name:
-            raise ValueError("json_schema and schema_name are required for streaming calls")
-        if not user:
-            raise ValueError("user parameter is required for usage tracking")
+        user: Any = None,
+    ) -> Generator[tuple[str, Any], None, None]:
+        """
+        Streaming completion. Yields ("response.output_text.delta", event_with_delta)
+        and ("final", {"call_log": log, "response": {}}).
+        """
+        model = model or get_default_model()
+        request_id = str(uuid.uuid4())
+        kwargs = {
+            "model": model,
+            "messages": _messages(system_instructions, user_prompt),
+            "stream": True,
+            "metadata": {"request_id": request_id},
+            "user": user,
+        }
+        if json_schema is not None:
+            kwargs["response_format"] = {"type": "json_object"}
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+        if tools is not None:
+            kwargs["tools"] = tools
 
-        model = model or self.model
-        provider = get_provider(model)
-        for event_type, event in provider.call_llm_stream(
-            model=model,
-            reasoning_effort=reasoning_effort,
-            system_instructions=system_instructions,
-            user_prompt=user_prompt,
-            tools=tools,
-            json_schema=json_schema,
-            schema_name=schema_name,
-            retries=retries,
-        ):
-            if event_type == "final":
-                result = event
-                call_log = _result_to_call_log(result, _get_caller_info())
-                if result.get("succeeded"):
-                    _track_usage(user, result.get("llm_cost_usd", 0), result.get("total_tokens", 0))
-                yield ("final", {"response": result.get("response"), "call_log": call_log})
-            else:
-                yield (event_type, event)
+        try:
+            stream = completion(**kwargs)
+            for chunk in stream:
+                delta = _delta_from_chunk(chunk)
+                if delta:
+                    yield "response.output_text.delta", SimpleNamespace(delta=delta)
+        except Exception:
+            raise
+
+        log = (
+            LLMCallLog.objects.filter(request_id=request_id)
+            .order_by("-created_at")
+            .first()
+        )
+        yield "final", {"call_log": log, "response": {}}

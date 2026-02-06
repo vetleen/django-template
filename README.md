@@ -239,130 +239,68 @@ New signups must verify their email before they can log in (when `EMAIL_VERIFICA
 - Implemented via `@custom-variant dark` in `static/src/input.css`, inline script in `<head>` to avoid FOUC, and context processor `accounts.context_processors.theme` that passes `theme` into templates.
 - **Theme update:** `POST /accounts/settings/theme/` with `theme=light` or `theme=dark` (login required); returns JSON `{"theme": "…"}`.
 
-## LLM Service
+## LLM Service (LiteLLM)
 
-The `llm_service` app provides a centralized service for LLM calls. It routes requests to providers (e.g. OpenAI) based on the chosen model. Only models in the supported registry are accepted.
+The `llm_service` app provides a thin, provider-agnostic layer over [LiteLLM](https://docs.litellm.ai/). All calls go through `completion(**kwargs)` or `acompletion(**kwargs)` with policy (timeout, retry, optional guardrail hooks), and every call is logged to **LLMCallLog** after completion. Cost comes from LiteLLM when available, with an optional fallback in `llm_service/pricing.py` for allowed models.
 
-### Architecture
-- **Router** (`services.py`): `LLMService` exposes `call_llm` and `call_llm_stream`, resolves the model to a provider, creates `LLMCallLog`, and tracks `UserMonthlyUsage`.
-- **Providers** (`llm_service/providers/`): One module per provider (e.g. `openai.py`). Each provider handles API calls, retries, and tool invocation in its own way; tool implementations (Python functions) are shared via `tool_registry`, but how tools are sent to the API and executed is per-provider.
-- **Registry** (`registry.py`): Single source of truth for supported models: each model maps to a **provider** and a **price_plan**. Price plans are defined in `utils/llm_pricing.py` (USD per 1M tokens).
+### API
 
-### Supported models
-Only these models are accepted (use `model=` in calls). Unsupported models raise `ValueError`.
+- **Sync**: `llm_service.client.completion(**kwargs)` — same kwargs as `litellm.completion()` (model, messages, stream, response_format, tools, etc.). Pass-through; add `metadata={}` and optional `user=` for attribution.
+- **Async**: `llm_service.client.acompletion(**kwargs)` — same behaviour for async views/workers.
+- **Backend**: `llm_service.client.get_client()` returns the configured client (LiteLLM by default). The client implements `BaseLLMClient` so you can swap the backend without changing callers.
 
-| Model       | Provider | Price plan  |
-|------------|----------|-------------|
-| gpt-5.2    | openai   | gpt-5.2     |
-| gpt-5      | openai   | gpt-5       |
-| gpt-5-mini | openai   | gpt-5-mini  |
-| gpt-5-nano | openai   | gpt-5-nano  |
-| gpt-4.1    | openai   | gpt-4.1     |
+### Allowed models
 
-Default model if none is passed: `gpt-5`. To list supported models in code: `from llm_service.registry import list_supported_models; list_supported_models()`.
+Only models in **LLM_ALLOWED_MODELS** (settings / env) are accepted; others raise `ValueError`. Set `LLM_ALLOWED_MODELS` to a comma-separated list in env, or override in Django settings. Default env: `openai/gpt-4o,openai/gpt-4o-mini`. Multiple providers can be in use at once (e.g. `openai/gpt-4o`, `anthropic/claude-3-5-sonnet`); set the corresponding API keys in env (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.).
 
-### Features
-- Structured JSON output with schema validation
-- Tool calling with automatic execution (shared tools; invocation per provider)
-- Streaming support with real-time event handling
-- Usage tracking and cost calculation
-- Comprehensive logging of all LLM calls
+### Metadata
 
-### Basic Usage
+Pass `metadata={"feature": "...", "tenant_id": "...", "request_id": "...", "trace_id": "..."}` (and any other keys) into every call. It is stored as JSON on **LLMCallLog** for debugging and cost allocation. You can also pass `request_id=` as a top-level kwarg; it is indexed.
 
-**Non-streaming (blocking):**
+### Policy
+
+- **Timeout**: `LLM_REQUEST_TIMEOUT` (default 60s).
+- **Retries**: `LLM_MAX_RETRIES` (default 2) with exponential backoff on rate limit and transient errors.
+- **Guardrails**: Optional pre-call and post-call hooks in settings (`LLM_PRE_CALL_HOOKS`, `LLM_POST_CALL_HOOKS`); receive `LLMRequest` / `LLMResult` and can block, sanitize, or validate.
+
+### Logging
+
+Every call writes one **LLMCallLog** when the call (or stream) ends. Fields include identity (id, created_at, duration_ms, user, metadata, request_id), request (model, is_stream, request_kwargs, prompt_preview), response (provider_response_id, response_model, response_preview), usage/cost (input/output/total tokens, cost_usd, cost_source), and errors (status, error_type, error_message, http_status, retry_count). Log write is bounded by `LLM_LOG_WRITE_TIMEOUT` (default 5s). If the full log fails (e.g. serialization), a minimal row (primitives only) is written so the process is not stuck.
+
+### Basic usage
+
+**Non-streaming:**
 ```python
-from llm_service.services import LLMService
-from django.contrib.auth import get_user_model
+from llm_service.client import completion
 
-User = get_user_model()
-service = LLMService()
-user = User.objects.first()
-
-json_schema = {
-    "type": "object",
-    "properties": {
-        "message": {"type": "string"},
-    },
-    "required": ["message"],
-    "additionalProperties": False,
-}
-
-call_log = service.call_llm(
-    user_prompt="Say hello",
-    json_schema=json_schema,
-    schema_name="greeting",
-    user=user,
-    model="gpt-5",  # Optional; default is gpt-5. Must be in supported registry.
-    retries=2,  # Optional, default: 2
+response = completion(
+    model="openai/gpt-4o",
+    messages=[{"role": "user", "content": "Say hello"}],
+    user=request.user,  # optional, for attribution
+    metadata={"feature": "greeting", "request_id": "req-123"},
 )
-
-# Access parsed JSON
-print(call_log.parsed_json["message"])
+# response is the raw LiteLLM response (e.g. response.choices[0].message.content)
 ```
 
-**Streaming (real-time events):**
+**Streaming (chunks proxied verbatim; log written when stream ends or consumer stops):**
 ```python
-gen = service.call_llm_stream(
-    user_prompt="Say hello",
-    json_schema=json_schema,
-    schema_name="greeting",
-    user=user,
-    retries=2,  # Optional, default: 2
-)
-
-for event_type, event in gen:
-    if event_type == "response.output_text.delta":
-        print(event.delta, end="")  # Print tokens as they arrive
-    elif event_type == "final":
-        call_log = event["call_log"]
-        print(f"\nCompleted: {call_log.parsed_json}")
-        break
+for chunk in completion(model="openai/gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True):
+    print(chunk.choices[0].delta.content, end="")
 ```
 
-### Tool Calling
-
-Both methods support tool calling with automatic execution. Define tools and pass them:
-
+**Async:**
 ```python
-from llm_service.tools.secret_number import GET_SECRET_NUMBER_TOOL
+from llm_service.client import acompletion
 
-call_log = service.call_llm(
-    user_prompt="Get the secret number",
-    json_schema=json_schema,
-    schema_name="result",
-    tools=[GET_SECRET_NUMBER_TOOL],
-    user=user,
-)
+response = await acompletion(model="openai/gpt-4o", messages=[{"role": "user", "content": "Hello"}])
 ```
 
-**Tool execution timing:**
-- **Non-streaming (`call_llm`)**: Tools are executed after the full response is received
-- **Streaming (`call_llm_stream`)**: Tools are executed immediately as their arguments are streamed (more efficient for multi-turn tool calls)
+### Env and settings
 
-### Retry Logic
+- **API keys**: Per provider, in env (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for each provider.
+- **Settings**: `LLM_DEFAULT_MODEL`, `LLM_ALLOWED_MODELS`, `LLM_REQUEST_TIMEOUT`, `LLM_MAX_RETRIES`, `LLM_LOG_WRITE_TIMEOUT`. Optional: `LLM_PRE_CALL_HOOKS`, `LLM_POST_CALL_HOOKS`.
 
-- **Non-streaming**: Retries on rate limits (exponential backoff), timeouts (incremental delay), and retryable errors
-- **Streaming**: Each stream round retries independently, but only if the error occurs before any events are yielded (avoids duplicate events)
-
-### Usage Tracking
-
-All calls are automatically tracked in:
-- `LLMCallLog`: Individual call logs with tokens, cost, and response data
-- `UserMonthlyUsage`: Monthly aggregates per user
-
-Pricing is per **price plan** (see `llm_service/utils/llm_pricing.py`); the registry links each model to a plan. View logs in admin: `/admin/llm_service/`
-
-### Testing
-
-Run tests with `TEST_APIS=True`:
-```bash
-TEST_APIS=True python manage.py test llm_service
-```
-
-Tests are in:
-- `llm_service/tests/test_llm_service.py` - Non-streaming tests
-- `llm_service/tests/test_llm_service_stream.py` - Streaming tests
+View logs in admin: `/admin/llm_service/llmcalllog/`.
 
 ## Chat Application (`llm_chat`)
 

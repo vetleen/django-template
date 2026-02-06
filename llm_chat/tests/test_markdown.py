@@ -33,18 +33,7 @@ class MarkdownRenderingTest(TestCase):
         markdown_content = "- Python\n- JavaScript\n- Rust"
         json_response = f'{{"message": "{markdown_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="List programming languages",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             # Simulate JSON streaming
@@ -83,18 +72,7 @@ class MarkdownRenderingTest(TestCase):
         json_content = markdown_content.replace('\n', '\\n').replace('"', '\\"')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Show me Python code",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -130,18 +108,7 @@ class MarkdownRenderingTest(TestCase):
         json_content = markdown_content.replace('\n', '\\n')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="How do I start?",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -174,18 +141,7 @@ class MarkdownRenderingTest(TestCase):
         markdown_content = "This is **bold** text and this is *italic* text. You can also use ***bold italic***."
         json_response = f'{{"message": "{markdown_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Show formatting",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -219,18 +175,7 @@ class MarkdownRenderingTest(TestCase):
         json_content = markdown_content.replace('\n', '\\n')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Create headers",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -263,18 +208,7 @@ class MarkdownRenderingTest(TestCase):
         markdown_content = "Use the `print()` function to output text. You can also use `console.log()` in JavaScript."
         json_response = f'{{"message": "{markdown_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Show inline code",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -306,18 +240,7 @@ class MarkdownRenderingTest(TestCase):
         markdown_content = "Check out [Django documentation](https://docs.djangoproject.com) for more info."
         json_response = f'{{"message": "{markdown_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Add a link",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -350,18 +273,7 @@ class MarkdownRenderingTest(TestCase):
         json_content = markdown_content.replace('\n', '\\n')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Add a quote",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -412,18 +324,7 @@ def hello():
         json_content = markdown_content.replace('\n', '\\n').replace('"', '\\"')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Create a guide",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -468,18 +369,7 @@ def hello():
         json_content = markdown_content.replace('\n', '\\n').replace('"', '\\"')
         json_response = f'{{"message": "{json_content}"}}'
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="Test escaping",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             yield ("response.output_text.delta", mock.Mock(delta=json_response))
@@ -521,18 +411,7 @@ def hello():
             '"}'
         ]
 
-        call_log = LLMCallLog.objects.create(
-            raw_response={},
-            caller="test",
-            model="gpt-5-nano",
-            reasoning_effort="low",
-            system_instructions="",
-            user_prompt="List languages",
-            json_schema={},
-            schema_name="chat_message",
-            parsed_json={"message": markdown_content},
-            succeeded=True,
-        )
+        call_log = LLMCallLog.objects.create(model="openai/gpt-5-nano")
 
         def fake_stream(**kwargs):
             for part in json_parts:
