@@ -50,6 +50,7 @@
      ```
    - **Windows (Native)**: Download from [Redis for Windows](https://github.com/microsoftarchive/redis/releases) or use WSL (recommended)
    - **Linux**: `sudo apt-get install redis-server` (Ubuntu/Debian) or `brew install redis` (Mac)
+   - **Linux**: `sudo service redis start`
    - **Docker**: `docker run -d -p 6379:6379 redis:latest`
    
    Redis runs on port 6379 by default. Ensure Redis is running before starting the Django server.
