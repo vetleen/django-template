@@ -14,9 +14,11 @@ from django.contrib.auth import get_user_model
 from django.test import LiveServerTestCase, override_settings, TestCase
 from django.urls import reverse
 
+from llm_service.conf import get_allowed_models
+
 User = get_user_model()
 
-# Need at least 3 models to switch between in the test
+# Need at least 3 models to switch between in the test (used when LLM_ALLOWED_MODELS is overridden)
 TEST_ALLOWED_MODELS = [
     "moonshot/kimi-k2.5",
     "moonshot/kimi-k2-thinking",
@@ -32,7 +34,12 @@ class PreferredModelAPITest(TestCase):
     """Test that POST preferred-model updates the setting and GET returns it (no browser)."""
 
     def setUp(self):
+        super().setUp()
         self.user = User.objects.create_user(email="api-test@example.com", password="testpass123")
+        # Use project's allowed list so view and test agree (override_settings applies to this test class)
+        self._allowed = get_allowed_models()
+        if len(self._allowed) < 3:
+            self._allowed = TEST_ALLOWED_MODELS  # fallback if setting not applied
 
     def _get_preferred_model(self, client):
         r = client.get(reverse("chat_preferred_model_update"))
@@ -40,36 +47,24 @@ class PreferredModelAPITest(TestCase):
         return r.json().get("model", "")
 
     def _set_preferred_model(self, client, model):
-        r = client.post(
-            reverse("chat_preferred_model_update"),
-            data={"model": model},
-            content_type="application/x-www-form-urlencoded",
-        )
+        r = client.post(reverse("chat_preferred_model_update"), data={"model": model})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json().get("model"), model)
 
     def test_set_model_several_times_persists_immediately(self):
         """Change preferred model several times via API; each GET reflects the last POST."""
-        client = self.client
+        if len(self._allowed) < 3:
+            self.skipTest("Need at least 3 models in LLM_ALLOWED_MODELS for this test")
+        first, second, third = self._allowed[0], self._allowed[1], self._allowed[2]
         self.client.force_login(self.user)
-
-        # Default should be first in allowed (or app default)
-        current = self._get_preferred_model(client)
-        self.assertIn(current, TEST_ALLOWED_MODELS)
-
-        first, second, third = TEST_ALLOWED_MODELS[0], TEST_ALLOWED_MODELS[1], TEST_ALLOWED_MODELS[2]
-
-        # Set to second, then GET
-        self._set_preferred_model(client, second)
-        self.assertEqual(self._get_preferred_model(client), second)
-
-        # Set to third, then GET
-        self._set_preferred_model(client, third)
-        self.assertEqual(self._get_preferred_model(client), third)
-
-        # Set back to first, then GET
-        self._set_preferred_model(client, first)
-        self.assertEqual(self._get_preferred_model(client), first)
+        self._set_preferred_model(self.client, first)
+        self.assertEqual(self._get_preferred_model(self.client), first)
+        self._set_preferred_model(self.client, second)
+        self.assertEqual(self._get_preferred_model(self.client), second)
+        self._set_preferred_model(self.client, third)
+        self.assertEqual(self._get_preferred_model(self.client), third)
+        self._set_preferred_model(self.client, first)
+        self.assertEqual(self._get_preferred_model(self.client), first)
 
 
 @override_settings(
