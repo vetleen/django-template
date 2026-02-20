@@ -90,3 +90,61 @@ class UserSettings(models.Model):
 
     def __str__(self) -> str:
         return f"Settings for {self.user}"
+
+
+class Organization(models.Model):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Scope(models.Model):
+    """Reusable scope for membership permissions (e.g. billing, settings)."""
+    code = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=128)
+
+    class Meta:
+        ordering = ("code",)
+
+    def __str__(self) -> str:
+        return self.name or self.code
+
+
+class Membership(models.Model):
+    class Role(models.TextChoices):
+        ADMIN = "admin", "Admin"
+        MEMBER = "member", "Member"
+        VIEWER = "viewer", "Viewer"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="organization_memberships",
+    )
+    org = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+        default=Role.MEMBER,
+    )
+    scopes = models.ManyToManyField(
+        Scope,
+        related_name="memberships",
+        blank=True,
+    )
+
+    class Meta:
+        unique_together = [("user", "org")]
+        ordering = ("org", "user")
+
+    def __str__(self) -> str:
+        return f"{self.user} in {self.org} ({self.role})"

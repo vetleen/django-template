@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.utils import timezone
 
-from .models import EmailVerificationToken, User
+from .models import EmailVerificationToken, Membership, Organization, Scope, User
 
 
 @admin.register(User)
@@ -42,3 +42,25 @@ class EmailVerificationTokenAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug")
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(Scope)
+class ScopeAdmin(admin.ModelAdmin):
+    list_display = ("code", "name")
+    search_fields = ("code", "name")
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ("user", "org", "role")
+    list_filter = ("role", "org")
+    search_fields = ("user__email", "org__name")
+    raw_id_fields = ("user", "org")
+    filter_horizontal = ("scopes",)
