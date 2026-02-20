@@ -86,7 +86,37 @@ Note: The chat application requires WebSocket support, so use one of the above m
 
 ### Heroku deployment
 
-**Checklist before first deploy:**
+**Option: New app (clean slate)** — If you remade migrations or don't need existing Heroku data, creating a new app avoids DB/migration mismatches:
+
+```bash
+# Create app (pick a name or leave blank for a generated one)
+heroku create your-app-name
+# Or: heroku create
+
+# Add-ons (Postgres + Redis). Heroku sets DATABASE_URL and REDIS_URL automatically.
+heroku addons:create heroku-postgresql:essential-0 -a your-app-name
+heroku addons:create heroku-redis:mini -a your-app-name
+
+# Buildpacks: Node first (Tailwind), then Python
+heroku buildpacks:add --index 1 heroku/nodejs -a your-app-name
+heroku buildpacks:add heroku/python -a your-app-name
+
+# Required config vars (replace your-app-name). Secret key: run
+#   python -c "import secrets; print(secrets.token_urlsafe(50))"
+# then set DJANGO_SECRET_KEY in Dashboard or: heroku config:set DJANGO_SECRET_KEY=<paste> -a your-app-name
+heroku config:set DJANGO_CSRF_TRUSTED_ORIGINS=https://your-app-name.herokuapp.com -a your-app-name
+
+# Optional for dev/staging: skip email verification
+heroku config:set EMAIL_VERIFICATION_REQUIRED=False -a your-app-name
+
+# Deploy (from repo root; ensure 'heroku' remote points to the new app)
+git push heroku main
+# Release phase runs migrate + collectstatic automatically.
+```
+
+Add any other vars (e.g. `OPENAI_API_KEY`, `LLM_ALLOWED_MODELS`) in Dashboard → Settings → Config Vars or via `heroku config:set` after the first deploy.
+
+**Checklist before first deploy** (if not using the new-app flow above):
 
 1. **Node.js buildpack** (required so Tailwind CSS is built during the build phase):
    ```bash
